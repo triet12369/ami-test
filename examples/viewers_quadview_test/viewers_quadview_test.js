@@ -20,7 +20,6 @@ let redContourHelper = null;
 let redTextureTarget = null;
 let redContourScene = null;
 let group = new THREE.Group();
-let count = true;
 
 // // 3d renderer
 // const r0 = {
@@ -287,6 +286,7 @@ function initHelpersStack(rendererObj, stack) {
   rendererObj.stackHelper.slice.canvasWidth = rendererObj.domElement.clientWidth;
   rendererObj.stackHelper.slice.canvasHeight = rendererObj.domElement.clientHeight;
   rendererObj.stackHelper.slice.intensityAuto = false;
+  rendererObj.stackHelper.slice.draw = false;
 
 
   // set camera
@@ -341,6 +341,7 @@ function initHelpersLocalizer(rendererObj, stack, referencePlane, localizers) {
 }
 
 function changePlane(rendererObj, planePosition, planeDirection){
+  isRender = true;
   //update plane position and direction
   rendererObj.stackHelper.slice.planePosition = planePosition;
   rendererObj.stackHelper.slice.planeDirection = planeDirection;
@@ -357,13 +358,35 @@ function updateObliqueCamera(rendererObj){
   cameraPos.addVectors(rendererObj.stackHelper.slice.planePosition, rendererObj.stackHelper.slice.planeDirection.multiplyScalar(distanceToPlane));
   rendererObj.camera.position.copy(cameraPos);
   rendererObj.camera.up = new THREE.Vector3(0,0,1); // rotate the camera to match with the plane
+  //rendererObj.camera.up = planeDirection;
   rendererObj.camera.lookAt(rendererObj.stackHelper.slice.planePosition);
-  console.log('cameraPos ' + rendererObj.camera.position.toArray());
-  console.log('planePos ' + rendererObj.stackHelper.slice.planePosition.toArray());
-  console.log('cameraFov ' + distanceToPlane);
-
+  // console.log('cameraPos ' + rendererObj.camera.position.toArray());
+  // console.log('planePos ' + rendererObj.stackHelper.slice.planePosition.toArray());
+  // console.log('cameraFov ' + distanceToPlane);
+}
+function calculateObliquePlane(line, currentPlaneDir){
+  // the goal is to determine the oblique plane's direction
+  // receive reference line then compute the dot product of that line's vector with the current plane direction
+  let lineVector = new THREE.Vector3();
+  lineVector.subVectors(line.geometry.vertices[1], line.geometry.vertices[0]).normalize();
+  console.log('lineVector ' + lineVector.toArray());
+  //calculate oblique plane direction
+  let planeDir = new THREE.Vector3();
+  planeDir.crossVectors(lineVector, currentPlaneDir);
+  console.log('planeDir ' + planeDir.toArray());
+  return planeDir;
 }
 
+function calculateOffset(line, currentPlaneCenterPos){
+  let lineMath = new THREE.Line3(line.geometry.vertices[0], line.geometry.vertices[1]);
+  let C = new THREE.Vector3(); //closest point in line
+
+  // calculate C
+  lineMath.closestPointToPoint(currentPlaneCenterPos, false, C);
+
+  let distance = currentPlaneCenterPos.distanceTo(C);
+  console.log('distance ' + distance);
+}
 function render() {
   // we are ready when both meshes have been loaded
   if (ready) {
@@ -376,16 +399,27 @@ function render() {
     //r0.light.position.copy(r0.camera.position);
     if (isRender) {
       //r0.camera.rotate(30);
-      let dirLPS = new THREE.Vector3(1, 0.57, 0.463).normalize();
-      
+      //randomize change vector
+      //let timer = Date.now() * 0.00025;
+
+      //let dirLPS = new THREE.Vector3(Math.sin(timer*7), Math.cos(timer*5), Math.cos(timer*3)).normalize();
+      //let posLPS = new THREE.Vector3(Math.sin(timer*7) * 70, Math.cos(timer*5) * 70, Math.cos(timer*3) * 90);
       //r0.stackHelper.slice.planeDirection = dirLPS;
       //r0.stackHelper.border.helpersSlice = r0.stackHelper.slice;
       //r0.camera.quaternion.copy(r0.stackHelper.slice.planeDirection);
       //r0.camera.position.copy(r0.stackHelper.slice.planePosition);
-      console.log('planeDir ' + dirLPS.toArray());
+      //console.log('planeDir ' + dirLPS.toArray());
       //group.lookAt(r0.camera.position);
-      changePlane(r0, r0.stackHelper.slice.planePosition, dirLPS);
+
       r1.renderer.clear();
+      console.log('planeDirection1 ' + r1.stackHelper.slice.planeDirection.toArray());
+      // console.log('planeDirection2 ' + r2.stackHelper.slice.planeDirection.toArray());
+      // console.log('planeDirection3 ' + r3.stackHelper.slice.planeDirection.toArray());
+
+      console.log('planePosition1 ' + r1.stackHelper.slice.planePosition.toArray());
+      // console.log('planePosition2 ' + r2.stackHelper.slice.planePosition.toArray());
+      // console.log('planePosition3 ' + r3.stackHelper.slice.planePosition.toArray());
+
       r0.renderer.render(r0.scene, r0.camera);
 
       // r1
@@ -579,6 +613,9 @@ window.onload = function() {
         .add(r1.stackHelper.slice, 'windowCenter', stack.minMax[0], stack.minMax[1])
         .step(1)
         .listen();
+      stackFolder1
+        .add(r1.stackHelper.slice, 'draw')
+        .listen();
 
       // Yellow
       let stackFolder2 = gui.addFolder('Sagittal (yellow)');
@@ -590,6 +627,9 @@ window.onload = function() {
         .add(r2.stackHelper.slice, 'interpolation', 0, 1)
         .step(1)
         .listen();
+      stackFolder2
+        .add(r2.stackHelper.slice, 'draw')
+        .listen();
 
       // Green
       let stackFolder3 = gui.addFolder('Coronal (green)');
@@ -600,6 +640,9 @@ window.onload = function() {
       stackFolder3
         .add(r3.stackHelper.slice, 'interpolation', 0, 1)
         .step(1)
+        .listen();
+      stackFolder3
+        .add(r3.stackHelper.slice, 'draw')
         .listen();
 
       /**
@@ -627,7 +670,7 @@ window.onload = function() {
         }
 
          //update the geometry will create a new mesh
-        //localizerHelper.geometry = refHelper.slice.geometry;
+        localizerHelper.geometry = refHelper.slice.geometry;
       }
 
       function updateClipPlane(refObj, clipPlane) {
@@ -774,7 +817,7 @@ window.onload = function() {
         switch (id) {
           case '0':
             camera = r0.camera;
-            stackHelper = r1.stackHelper;
+            stackHelper = r0.stackHelper;
             scene = r0.scene;
             break;
           case '1':
@@ -799,33 +842,120 @@ window.onload = function() {
 
         const intersects = raycaster.intersectObjects(scene.children, true);
         if (intersects.length > 0) {
-          if (intersects[0].object && intersects[0].object.objRef) {
-            const refObject = intersects[0].object.objRef;
-            refObject.selected = !refObject.selected;
-
-            let color = refObject.color;
-            if (refObject.selected) {
-              color = 0xccff00;
-            }
-
-            // update materials colors
-            refObject.material.color.setHex(color);
-            refObject.materialFront.color.setHex(color);
-            refObject.materialBack.color.setHex(color);
-          }
+          //console.log('hit');
+          let ijk = CoreUtils.worldToData(stackHelper.stack.lps2IJK, intersects[0].point);
+          //console.log('lps2IJK ' + stackHelper.stack.lps2IJK.toArray());
+          // console.log('intersect point ' + intersects[0].point.toArray());
+          // console.log('ijk point ' + ijk.toArray());
+          //console.log('dimensionIJK ' + stackHelper.stack.dimensionsIJK.toArray());
         }
       }
       r0.domElement.addEventListener('click', onClick);
-      // r1.domElement.addEventListener('click', onClick);
-      // r2.domElement.addEventListener('click', onClick);
-      // r3.domElement.addEventListener('click', onClick);
+      r1.domElement.addEventListener('click', onClick);
+      r2.domElement.addEventListener('click', onClick);
+      r3.domElement.addEventListener('click', onClick);
 
       // add drag event
       let dragActive = false;
+      // line constructor
+      function initLine (stackHelper, scene) {
+        if (stackHelper) {
+          const materialLine = new THREE.LineBasicMaterial({
+            color: colors.green
+          });
+          const geometryLine = new THREE.Geometry();          
+
+          // //test line
+          // geometryLine.vertices.push(new THREE.Vector3(-120,-110,-53.75));
+          // geometryLine.vertices.push(new THREE.Vector3(120,110,-53.75));
+          stackHelper.slice.line = new THREE.Line(geometryLine, materialLine);
+          stackHelper.slice.line.geometry.dispose();
+          stackHelper.slice.line.material.dispose();         
+          stackHelper.slice.line.geometry.verticesNeedUpdate = true;
+          scene.add(stackHelper.slice.line);        
+        }
+      }   
       function dragStart(event){
         dragActive = true;
+        let stackHelper = null;
+        let scene = null;
+        let camera = null;
+        const id = event.target.id;
+        const canvas = event.target.parentElement;
+        const mouse = {
+          x: ((event.clientX - canvas.offsetLeft) / canvas.clientWidth) * 2 - 1,
+          y: -((event.clientY - canvas.offsetTop) / canvas.clientHeight) * 2 + 1,
+        };
+        switch (id) {
+          case '0':
+            camera = r0.camera;
+            stackHelper = r1.stackHelper;
+            scene = r0.scene;
+            break;
+          case '1':
+            camera = r1.camera;
+            stackHelper = r1.stackHelper;
+            scene = r1.scene;
+            break;
+          case '2':
+            camera = r2.camera;
+            stackHelper = r2.stackHelper;
+            scene = r2.scene;
+            break;
+          case '3':
+            camera = r3.camera;
+            stackHelper = r3.stackHelper;
+            scene = r3.scene;
+            break;
+        }   
+        scene.remove(stackHelper.slice.line);
+        if (stackHelper.slice.draw){
+          initLine(stackHelper, scene);  
+          const raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObjects(scene.children, true);
+          if (intersects.length > 0) {            
+            stackHelper.slice.line.geometry.verticesNeedUpdate = true;
+            stackHelper.slice.line.geometry.vertices[0] = intersects[0].point;
+          }
+        }
       }
+      
       function dragStop(event){
+        let camera = null;
+        let stackHelper = null;
+        let scene = null;
+        const id = event.target.id;
+        switch (id) {
+          case '0':
+            camera = r0.camera;
+            stackHelper = r0.stackHelper;
+            scene = r0.scene;
+            break;
+          case '1':
+            camera = r1.camera;
+            stackHelper = r1.stackHelper;
+            scene = r1.scene;
+            break;
+          case '2':
+            camera = r2.camera;
+            stackHelper = r2.stackHelper;
+            scene = r2.scene;
+            break;
+          case '3':
+            camera = r3.camera;
+            stackHelper = r3.stackHelper;
+            scene = r3.scene;
+            break;
+        }
+        if (stackHelper.slice.draw){
+        console.log('line start '+ stackHelper.slice.line.geometry.vertices[0].toArray()); 
+        console.log('line end '+ stackHelper.slice.line.geometry.vertices[1].toArray());
+
+        let planeDir = calculateObliquePlane(stackHelper.slice.line, stackHelper.slice.planeDirection);
+        //calculateOffset(stackHelper.slice.line, posLPS);
+        changePlane(r0, stackHelper.slice.line.geometry.vertices[1], planeDir);
+        }
         dragActive = false;
       }
       function onDrag(event){
@@ -843,8 +973,6 @@ window.onload = function() {
           let stackHelper = null;
           let scene = null;
 
-          const raycaster = new THREE.Raycaster();
-
           switch (id) {
             case '0':
               camera = r0.camera;
@@ -855,30 +983,33 @@ window.onload = function() {
               camera = r1.camera;
               stackHelper = r1.stackHelper;
               scene = r1.scene;
-              raycaster.setFromCamera(mouse, camera);
               break;
             case '2':
               camera = r2.camera;
               stackHelper = r2.stackHelper;
               scene = r2.scene;
-              raycaster.setFromCamera(mouse, camera);
               break;
             case '3':
               camera = r3.camera;
               stackHelper = r3.stackHelper;
               scene = r3.scene;
-              raycaster.setFromCamera(mouse, camera);
               break;
-          }
+          }         
 
+          const raycaster = new THREE.Raycaster();
+ 
+          raycaster.setFromCamera(mouse, camera);
           const intersects = raycaster.intersectObjects(scene.children, true);
-          if (intersects.length > 0) {
+          if (intersects.length > 0) {            
             let ijk = CoreUtils.worldToData(stackHelper.stack.lps2IJK, intersects[0].point);
-
-            r1.stackHelper.index = ijk.getComponent((r1.stackHelper.orientation + 2) % 3);
-            r2.stackHelper.index = ijk.getComponent((r2.stackHelper.orientation + 2) % 3);
-            r3.stackHelper.index = ijk.getComponent((r3.stackHelper.orientation + 2) % 3);
-
+            if (stackHelper.slice.draw) {
+              stackHelper.slice.line.geometry.vertices[1] = intersects[0].point;
+              stackHelper.slice.line.geometry.verticesNeedUpdate = true;
+            } else {
+              r1.stackHelper.index = ijk.getComponent((r1.stackHelper.orientation + 2) % 3);
+              r2.stackHelper.index = ijk.getComponent((r2.stackHelper.orientation + 2) % 3);
+              r3.stackHelper.index = ijk.getComponent((r3.stackHelper.orientation + 2) % 3);
+            }
             onGreenChanged();
             onRedChanged();
             onYellowChanged();

@@ -6,7 +6,7 @@ function pad(num, size) {
   while (s.length < size) s = '0' + s;
   return s;
 }
-for (var i = 1; i < 200; i++){
+for (var i = 1; i < 100; i++){
   filenames.push('CT'+ pad(i,6));
 }
 console.log(filenames);
@@ -19,5 +19,6 @@ console.log(filenames);
     red: 0xff0000,
     blue: 0x0000ff,
     darkGrey: 0x353535,
+    green: 0x00ff00,
   };
   
