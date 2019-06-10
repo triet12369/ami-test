@@ -286,7 +286,7 @@ function initHelpersStack(rendererObj, stack) {
   rendererObj.stackHelper.slice.canvasWidth = rendererObj.domElement.clientWidth;
   rendererObj.stackHelper.slice.canvasHeight = rendererObj.domElement.clientHeight;
   rendererObj.stackHelper.slice.intensityAuto = false;
-  rendererObj.stackHelper.slice.draw = false;
+  rendererObj.stackHelper.slice.draw = true;
 
 
   // set camera
@@ -340,39 +340,82 @@ function initHelpersLocalizer(rendererObj, stack, referencePlane, localizers) {
   rendererObj.localizerScene.add(rendererObj.localizerHelper);
 }
 
-function changePlane(rendererObj, planePosition, planeDirection){
+function changePlane(rendererObj, line, planeDirection, currentPlaneDirection){
   isRender = true;
+
   //update plane position and direction
-  rendererObj.stackHelper.slice.planePosition = planePosition;
+  rendererObj.stackHelper.slice.planePosition = line.geometry.vertices[1];  
   rendererObj.stackHelper.slice.planeDirection = planeDirection;
+  rendererObj.stackHelper.slice.geometry.computeBoundingBox();
+  rendererObj.stackHelper.slice.geometry.boundingBox.getCenter(rendererObj.stackHelper.slice.planePosition);
   //update plane border
   rendererObj.stackHelper.border.helpersSlice = rendererObj.stackHelper.slice;
-
+  // let particleLight = new THREE.Mesh(
+  //   new THREE.SphereGeometry(2, 8, 8),
+  //   new THREE.MeshBasicMaterial({ color: 0xfff336 })
+  // );
+  // particleLight.position.copy(rendererObj.stackHelper.slice.planePosition);
+  // rendererObj.scene.add(particleLight);
   //update camera
-  updateObliqueCamera(rendererObj);
+  updateObliqueCamera(rendererObj, line, currentPlaneDirection);
 }
-function updateObliqueCamera(rendererObj){
+
+function calculateLineVector(line){
+  let lineVector = new THREE.Vector3();
+  lineVector.subVectors(line.geometry.vertices[1], line.geometry.vertices[0]).normalize();
+  return lineVector;
+}
+
+function updateObliqueCamera(rendererObj, line, currentPlaneDirection){
   // update camera to face the new plane
-  let distanceToPlane = rendererObj.stackHelper.slice.canvasHeight / 2 / Math.tan(Math.PI * rendererObj.camera.fov / 360);
+  let bboxMax = rendererObj.stackHelper.slice.geometry.boundingBox.max.toArray();
+  let distanceToPlane = Math.max(...bboxMax)*1.1 / Math.tan(Math.PI * rendererObj.camera.fov / 360);
   let cameraPos = new THREE.Vector3();
   cameraPos.addVectors(rendererObj.stackHelper.slice.planePosition, rendererObj.stackHelper.slice.planeDirection.multiplyScalar(distanceToPlane));
   rendererObj.camera.position.copy(cameraPos);
-  rendererObj.camera.up = new THREE.Vector3(0,0,1); // rotate the camera to match with the plane
-  //rendererObj.camera.up = planeDirection;
-  rendererObj.camera.lookAt(rendererObj.stackHelper.slice.planePosition);
+  //rendererObj.camera.up = new THREE.Vector3(0,0,1); // rotate the camera to match with the plane
+  let planeDirectionArr = currentPlaneDirection.toArray();
+  let planeDirectionMaxElement = planeDirectionArr.indexOf(Math.max(...planeDirectionArr));
+  //console.log('plane pos ' + CoreUtils.worldToData(rendererObj.stackHelper.stack.lps2IJK, rendererObj.stackHelper.slice.planePosition).toArray());
+  //console.log('border pos ' + Math.max(...bboxMax));
+  switch (planeDirectionMaxElement) {
+    case 0:
+      console.log('sagittal');
+      //rendererObj.camera.up = new THREE.Vector3().crossVectors(calculateLineVector(line), currentPlaneDirection);
+      rendererObj.camera.up = calculateLineVector(line).negate();
+      break;
+    case 1:
+      console.log('coronal');
+      //rendererObj.camera.up = new THREE.Vector3().crossVectors(calculateLineVector(line), planeDirection);
+      let corVector = new THREE.Vector3().crossVectors(calculateLineVector(line), rendererObj.stackHelper.slice.planeDirection);
+      rendererObj.camera.up = corVector.setX(-corVector.getComponent(0));
+      break;
+    case 2:
+      console.log('axial');
+      //rendererObj.camera.up = calculateLineVector(line);
+      rendererObj.camera.up = currentPlaneDirection;
+    break;
+  }
+  
+  rendererObj.controls.target = rendererObj.stackHelper.slice.planePosition;
+  rendererObj.camera.updateProjectionMatrix();
+
+  //rendererObj.camera.up = new THREE.Vector3().crossVectors(calculateLineVector(line), planeDirection);
+  //rendererObj.camera.up = calculateLineVector(line);
   // console.log('cameraPos ' + rendererObj.camera.position.toArray());
   // console.log('planePos ' + rendererObj.stackHelper.slice.planePosition.toArray());
   // console.log('cameraFov ' + distanceToPlane);
 }
+
 function calculateObliquePlane(line, currentPlaneDir){
   // the goal is to determine the oblique plane's direction
   // receive reference line then compute the dot product of that line's vector with the current plane direction
-  let lineVector = new THREE.Vector3();
-  lineVector.subVectors(line.geometry.vertices[1], line.geometry.vertices[0]).normalize();
-  console.log('lineVector ' + lineVector.toArray());
+  // let lineVector = new THREE.Vector3();
+  // lineVector.subVectors(line.geometry.vertices[1], line.geometry.vertices[0]).normalize();
+  // console.log('lineVector ' + lineVector.toArray());
   //calculate oblique plane direction
   let planeDir = new THREE.Vector3();
-  planeDir.crossVectors(lineVector, currentPlaneDir);
+  planeDir.crossVectors(calculateLineVector(line), currentPlaneDir);
   console.log('planeDir ' + planeDir.toArray());
   return planeDir;
 }
@@ -412,11 +455,11 @@ function render() {
       //group.lookAt(r0.camera.position);
 
       r1.renderer.clear();
-      console.log('planeDirection1 ' + r1.stackHelper.slice.planeDirection.toArray());
+      //console.log('planeDirection1 ' + r1.stackHelper.slice.planeDirection.toArray());
       // console.log('planeDirection2 ' + r2.stackHelper.slice.planeDirection.toArray());
       // console.log('planeDirection3 ' + r3.stackHelper.slice.planeDirection.toArray());
 
-      console.log('planePosition1 ' + r1.stackHelper.slice.planePosition.toArray());
+      //console.log('planePosition1 ' + r1.stackHelper.slice.planePosition.toArray());
       // console.log('planePosition2 ' + r2.stackHelper.slice.planePosition.toArray());
       // console.log('planePosition3 ' + r3.stackHelper.slice.planePosition.toArray());
 
@@ -845,7 +888,7 @@ window.onload = function() {
           //console.log('hit');
           let ijk = CoreUtils.worldToData(stackHelper.stack.lps2IJK, intersects[0].point);
           //console.log('lps2IJK ' + stackHelper.stack.lps2IJK.toArray());
-          // console.log('intersect point ' + intersects[0].point.toArray());
+          //console.log('intersect point ' + intersects[0].point.toArray());
           // console.log('ijk point ' + ijk.toArray());
           //console.log('dimensionIJK ' + stackHelper.stack.dimensionsIJK.toArray());
         }
@@ -951,10 +994,11 @@ window.onload = function() {
         if (stackHelper.slice.draw){
         console.log('line start '+ stackHelper.slice.line.geometry.vertices[0].toArray()); 
         console.log('line end '+ stackHelper.slice.line.geometry.vertices[1].toArray());
-
+        let currentPlaneDir = stackHelper.slice.planeDirection;
         let planeDir = calculateObliquePlane(stackHelper.slice.line, stackHelper.slice.planeDirection);
         //calculateOffset(stackHelper.slice.line, posLPS);
-        changePlane(r0, stackHelper.slice.line.geometry.vertices[1], planeDir);
+        
+        changePlane(r0, stackHelper.slice.line, planeDir, currentPlaneDir);
         }
         dragActive = false;
       }
