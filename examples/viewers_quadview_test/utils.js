@@ -6,7 +6,7 @@ function pad(num, size) {
   while (s.length < size) s = '0' + s;
   return s;
 }
-for (var i = 1; i < 250; i++){
+for (var i = 2; i < 250; i++){
   filenames.push('CT'+ pad(i,6));
 }
 console.log(filenames);
